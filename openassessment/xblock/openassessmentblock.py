@@ -364,6 +364,44 @@ class OpenAssessmentBlock(
         context = Context(context_dict)
         fragment = Fragment(template.render(context))
 
+        return self._update_and_return_fragment(fragment, 'OpenAssessmentBlock')
+
+    def grade_available_responses_view(self, context=None):
+        """Grade Available Responses view.
+
+        Auxiliary view which displays the staff grading area
+        (used in the Open Response Assessment tab in the Instructor Dashboard of LMS)
+
+        Args:
+            context: Not used for this view.
+
+        Returns:
+            (Fragment): The HTML Fragment for this XBlock.
+        """
+        student_item = self.get_student_item_dict()
+        staff_assessment_required = "staff-assessment" in self.assessment_steps
+
+        context_dict = {
+            "title": self.title,
+            'staff_assessment_required': staff_assessment_required
+        }
+
+        if staff_assessment_required:
+            context_dict.update(
+                self.get_staff_assessment_statistics_context(student_item["course_id"], student_item["item_id"])
+            )
+
+        template = get_template('openassessmentblock/oa_grade_available_responses.html')
+        context = Context(context_dict)
+        fragment = Fragment(template.render(context))
+
+        return self._update_and_return_fragment(fragment, 'GradeAvailableResponsesBlock')
+
+    def _update_and_return_fragment(self, fragment, initialize_js_func):
+        """
+        Auxiliary function to return updated fragment
+
+        """
         i18n_service = self.runtime.service(self, 'i18n')
         if hasattr(i18n_service, 'get_language_bidi') and i18n_service.get_language_bidi():
             css_url = "static/css/openassessment-rtl.css"
@@ -385,7 +423,7 @@ class OpenAssessmentBlock(
             "FILE_EXT_BLACK_LIST": self.FILE_EXT_BLACK_LIST,
             "FILE_TYPE_WHITE_LIST": self.white_listed_file_types,
         }
-        fragment.initialize_js('OpenAssessmentBlock', js_context_dict)
+        fragment.initialize_js(initialize_js_func, js_context_dict)
         return fragment
 
     @property

@@ -59,6 +59,33 @@ class TestOpenAssessment(XBlockHandlerTestCase):
         self.assertIsNotNone(grade_response)
         self.assertIn("step--grade", grade_response.body)
 
+    @scenario('data/staff_grade_scenario.xml')
+    def test_load_grade_available_responses_view(self, xblock):
+        """OA XBlock returns some HTML for case if Staff Assessment is configured.
+
+        View basic test for verifying auxiliary view which displays the staff grading area.
+        """
+        xblock_fragment = self.runtime.render(xblock, "grade_available_responses_view")
+        body_html = xblock_fragment.body_html()
+        self.assertIn("GradeAvailableResponsesBlock", body_html)
+        self.assertIn("openassessment__title", body_html)
+        self.assertIn("openassessment__staff-area", body_html)
+        self.assertIn("ui-staff__content", body_html)
+        self.assertNotIn("openassessment__staff-area-unavailable", body_html)
+
+    @scenario('data/basic_scenario.xml')
+    def test_load_grade_available_responses_view_staff_assessment_not_configured(self, xblock):
+        """OA XBlock returns some HTML for case if Staff Assessment is not configured.
+
+        View basic test for verifying auxiliary view which displays the staff grading area.
+        """
+        xblock_fragment = self.runtime.render(xblock, "grade_available_responses_view")
+        body_html = xblock_fragment.body_html()
+        self.assertIn("GradeAvailableResponsesBlock", body_html)
+        self.assertIn("openassessment__title", body_html)
+        self.assertNotIn("ui-staff__content", body_html)
+        self.assertIn("openassessment__staff-area-unavailable", body_html)
+
     @scenario('data/empty_prompt.xml')
     def test_prompt_intentionally_empty(self, xblock):
         # Verify that prompts intentionally left empty don't create DOM elements
