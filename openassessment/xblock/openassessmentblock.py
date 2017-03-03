@@ -394,6 +394,13 @@ class OpenAssessmentBlock(
         fragment.initialize_js('OpenAssessmentBlock', js_context_dict)
         return fragment
 
+    def author_view(self, context=None):
+        return self.student_view(context)
+
+    @property
+    def has_author_view(self):
+        return True
+
     @property
     def is_admin(self):
         """
