@@ -88,7 +88,6 @@ EDITOR_UPDATE_SCHEMA = Schema({
         All(utf8_validator, In(VALID_UPLOAD_FILE_TYPES)),
         None
     ),
-    Required('upload_file_count'): int,
     'white_listed_file_types': utf8_validator,
     Required('allow_latex'): bool,
     Required('leaderboard_show'): int,

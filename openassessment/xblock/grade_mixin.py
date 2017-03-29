@@ -139,7 +139,7 @@ class GradeMixin(object):
             ),
             'file_upload_type': self.file_upload_type,
             'allow_latex': self.allow_latex,
-            'file_urls': self.get_download_url_from_submission(student_submission)
+            'file_urls': self.get_download_urls_from_submission(student_submission)
         }
 
         return ('openassessmentblock/grade/oa_grade_complete.html', context)

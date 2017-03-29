@@ -17,12 +17,13 @@ OpenAssessment.ResponseView = function(element, server, fileUploader, baseView, 
     this.fileUploader = fileUploader;
     this.baseView = baseView;
     this.savedResponse = [];
-    this.files = {};
+    this.files = null;
+    this.filesType = null;
     this.lastChangeTime = Date.now();
     this.errorOnLastSave = false;
     this.autoSaveTimerId = null;
     this.data = data;
-    this.fileUploaded = false;
+    this.filesUploaded = false;
 };
 
 OpenAssessment.ResponseView.prototype = {
@@ -35,7 +36,7 @@ OpenAssessment.ResponseView.prototype = {
     AUTO_SAVE_WAIT: 30000,
 
     // Maximum file size (5 MB) for an attached file.
-    MAX_FILE_SIZE: 5242880,
+    MAX_FILES_SIZE: 5242880,
 
     UNSAVED_WARNING_KEY: "learner-response",
 
@@ -76,9 +77,7 @@ OpenAssessment.ResponseView.prototype = {
         var handleChange = function() { view.handleResponseChanged(); };
         sel.find('.submission__answer__part__text__value').on('change keyup drop paste', handleChange);
 
-        var handlePrepareUpload = function(eventData) {
-            view.prepareUpload(eventData.target.files, uploadType, $(eventData.target));
-        };
+        var handlePrepareUpload = function(eventData) { view.prepareUpload(eventData.target.files, uploadType); };
         sel.find('input[type=file]').on('change', handlePrepareUpload);
         // keep the preview as display none at first
         sel.find('#submission__preview__item').hide();
@@ -121,6 +120,7 @@ OpenAssessment.ResponseView.prototype = {
             function(eventObject) {
                 // Override default form submission
                 eventObject.preventDefault();
+                $('.submission__answer__display__file', view.element).removeClass('is--hidden');
                 view.uploadFiles();
             }
         );
@@ -381,7 +381,7 @@ OpenAssessment.ResponseView.prototype = {
         var fileDefer = $.Deferred();
 
         // check if there is a file selected but not uploaded yet
-        if (!$.isEmptyObject(view.files) && !view.fileUploaded) {
+        if (view.files !== null && !view.filesUploaded) {
             var msg = gettext('Do you want to upload your file before submitting?');
             if (confirm(msg)) {
                 fileDefer = view.uploadFiles();
@@ -472,48 +472,70 @@ OpenAssessment.ResponseView.prototype = {
      file or custom.
 
      **/
-    prepareUpload: function(files, uploadType, target) {
-        var num = target.attr('num');
-        var uploadKey = 'upload' + num;
-        var fileKey = 'file' + target.attr('num');
-        this.files[fileKey] = {
-            'type': files[0].type,
-            'name': files[0].name,
-            'file': null,
-            'num': num
-        };
-        var ext = files[0].name.split('.').pop().toLowerCase();
+    prepareUpload: function(files, uploadType) {
+        this.files = null;
+        this.filesType = uploadType;
+        this.filesUploaded = false;
 
-        if (files[0].size > this.MAX_FILE_SIZE) {
-            this.baseView.toggleActionError(
-                uploadKey,
-                gettext("File size must be 5MB or less.")
-            );
-        } else if (uploadType === "image" && this.data.ALLOWED_IMAGE_MIME_TYPES.indexOf(this.files[fileKey]['type']) === -1) {
-            this.baseView.toggleActionError(
-                uploadKey,
-                gettext("You can upload files with these file types: ") + "JPG, PNG or GIF"
-            );
-        } else if (uploadType === "pdf-and-image" && this.data.ALLOWED_FILE_MIME_TYPES.indexOf(this.files[fileKey]['type']) === -1) {
-            this.baseView.toggleActionError(
-                uploadKey,
-                gettext("You can upload files with these file types: ") + "JPG, PNG, GIF or PDF"
-            );
-        } else if (uploadType === "custom" && this.data.FILE_TYPE_WHITE_LIST.indexOf(ext) === -1) {
-            this.baseView.toggleActionError(
-                uploadKey,
-                gettext("You can upload files with these file types: ") + this.data.FILE_TYPE_WHITE_LIST.join(", ")
-            );
-        } else if (this.data.FILE_EXT_BLACK_LIST.indexOf(ext) !== -1) {
-            this.baseView.toggleActionError(
-                uploadKey,
-                gettext("File type is not allowed.")
-            );
-        } else {
-            this.baseView.toggleActionError(uploadKey, null);
-            this.files[fileKey]['file'] = files[0];
+        var totalSize = 0;
+        var ext = null;
+        var fileType = null;
+        var fileName = '';
+        var errorCheckerTriggered = false;
+
+        for (var i = 0; i < files.length; i++) {
+            totalSize += files[i].size;
+            ext = files[i].name.split('.').pop().toLowerCase();
+            fileType = files[i].type;
+            fileName = files[i].name;
+
+            if (totalSize > this.MAX_FILES_SIZE) {
+                this.baseView.toggleActionError(
+                    'upload',
+                    fileName + ': ' + gettext("File size must be 5MB or less.")
+                );
+                errorCheckerTriggered = true;
+                break;
+            } else if (uploadType === "image" && this.data.ALLOWED_IMAGE_MIME_TYPES.indexOf(fileType) === -1) {
+                this.baseView.toggleActionError(
+                    'upload',
+                    fileName + ': ' + gettext("You can upload files with these file types: ") + "JPG, PNG or GIF"
+                );
+                errorCheckerTriggered = true;
+                break;
+            } else if (uploadType === "pdf-and-image" && this.data.ALLOWED_FILE_MIME_TYPES.indexOf(fileType) === -1) {
+                this.baseView.toggleActionError(
+                    'upload',
+                    fileName + ': ' + gettext("You can upload files with these file types: ") + "JPG, PNG, GIF or PDF"
+                );
+                errorCheckerTriggered = true;
+                break;
+            } else if (uploadType === "custom" && this.data.FILE_TYPE_WHITE_LIST.indexOf(ext) === -1) {
+                this.baseView.toggleActionError(
+                    'upload',
+                    fileName + ': ' + gettext("You can upload files with these file types: ") +
+                    this.data.FILE_TYPE_WHITE_LIST.join(", ")
+                );
+                errorCheckerTriggered = true;
+                break;
+            } else if (this.data.FILE_EXT_BLACK_LIST.indexOf(ext) !== -1) {
+                this.baseView.toggleActionError(
+                    'upload',
+                    fileName + ': ' + gettext("File type is not allowed.")
+                );
+                errorCheckerTriggered = true;
+                break;
+            }
         }
-        $("#file__upload").toggleClass("is--disabled", $.isEmptyObject(this.files));
+
+        console.log('errorCheckerTriggered', errorCheckerTriggered);
+        if (!errorCheckerTriggered) {
+            this.baseView.toggleActionError('upload', null);
+            this.files = files;
+            $("#file__upload").removeClass("is--disabled")
+        } else {
+            $("#file__upload").addClass("is--disabled")
+        }
     },
 
     /**
@@ -524,20 +546,19 @@ OpenAssessment.ResponseView.prototype = {
      **/
     uploadFiles: function() {
         var view = this;
-        var fileUpload = $("#file__upload");
-        fileUpload.addClass("is--disabled");
-
         var promise = null;
-        var first = false;
+        var first = true;
+        var fileCount = view.files.length;
 
+        $("#file__upload").addClass("is--disabled");
 
-        $.each(view.files, function(_, obj) {
-            if (!first) {
-                promise = view.fileUpload(view, obj['type'], obj['name'], obj['file'], obj['num']);
+        $.each(view.files, function(index, file) {
+            if (first) {
+                promise = view.fileUpload(view, file.type, file.name, index, file, fileCount === (index + 1));
                 first = false;
             } else {
                 promise = promise.then(function() {
-                    return view.fileUpload();
+                    return view.fileUpload(view, file.type, file.name, index, file, fileCount === (index + 1));
                 });
             }
         });
@@ -545,22 +566,22 @@ OpenAssessment.ResponseView.prototype = {
         return promise;
     },
 
-    fileUpload: function(view, fileType, fileName, file, fileNum) {
+    fileUpload: function(view, filetype, filename, filenum, file, finalUpload) {
         var handleError = function(errMsg) {
-            view.baseView.toggleActionError('upload' + fileNum, errMsg);
+            view.baseView.toggleActionError('upload', filename + ': ' + errMsg);
+            $("#file__upload").removeClass("is--disabled");
         };
 
-        // Call getUploadUrl to get the one-time upload URL for this file. Once
-        // completed, execute a sequential AJAX call to upload to the returned
-        // URL. This request requires appropriate CORS configuration for AJAX
-        // PUT requests on the server.
-        return view.server.getUploadUrl(fileType, fileName, fileNum).done(
+        return view.server.getUploadUrl(filetype, filename, filenum).done(
             function(url) {
                 view.fileUploader.upload(url, file)
                     .done(function() {
-                        view.fileUrl(fileType, fileNum);
-                        view.baseView.toggleActionError('upload' + fileNum, null);
-                        view.fileUploaded = true;
+                        view.fileUrl(filenum);
+                        view.baseView.toggleActionError('upload', null);
+                        if (finalUpload) {
+                            $("#file__upload").removeClass("is--disabled");
+                            view.filesUploaded = true;
+                        }
                     })
                     .fail(handleError);
             }
@@ -570,18 +591,40 @@ OpenAssessment.ResponseView.prototype = {
     /**
      Set the file URL, or retrieve it.
      **/
-    fileUrl: function(fileType, num) {
+    fileUrl: function(filenum) {
         var view = this;
-        var file = $('#submission__answer__file__' + num, view.element);
-        view.server.getDownloadUrl(num).done(function(url) {
-            $('#submission__upload__' + num, view.element).removeClass('is--hidden');
-            if (file.prop("tagName") === "IMG") {
+        view.server.getDownloadUrl(filenum).done(function(url) {
+            var className = 'submission__answer__file__block__' + filenum;
+            var file = null;
+            var fileBlock = null;
+            var fileBlockExists = $("." + className).length > 0;
+
+            if (view.filesType === 'image') {
+                file = $('<img />');
+                file.addClass('submission__answer__file submission--image');
+                file.attr('alt', gettext("The image associated with this submission:") + ' #' + (filenum + 1));
                 file.attr('src', url);
             } else {
-                file.attr('href', url);
+                file = $('<a />', {
+                    href: url,
+                    text: gettext("View the file associated with this submission:") + ' #' + (filenum + 1)
+                });
+                file.addClass('submission__answer__file submission--file');
+                file.attr('target', '_blank');
             }
+
+            if (file) {
+                if (fileBlockExists) {
+                    $("." + className).html(file);
+                } else {
+                    fileBlock = $('<div/>');
+                    fileBlock.addClass(className);
+                    file.appendTo(fileBlock);
+                    fileBlock.appendTo('.submission__answer__files');
+                }
+            }
+
             return url;
         });
     }
-
 };

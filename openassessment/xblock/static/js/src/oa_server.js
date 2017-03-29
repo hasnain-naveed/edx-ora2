@@ -443,7 +443,6 @@ if (typeof OpenAssessment.Server === "undefined" || !OpenAssessment.Server) {
                 assessments: options.assessments,
                 editor_assessments_order: options.editorAssessmentsOrder,
                 file_upload_type: options.fileUploadType,
-                upload_file_count: options.uploadFileCountNum,
                 white_listed_file_types: options.fileTypeWhiteList,
                 allow_latex: options.latexEnabled,
                 leaderboard_show: options.leaderboardNum

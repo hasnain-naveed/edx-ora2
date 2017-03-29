@@ -33,6 +33,8 @@ class SubmissionMixin(object):
 
     ALLOWED_FILE_MIME_TYPES = ['application/pdf'] + ALLOWED_IMAGE_MIME_TYPES
 
+    MAX_FILES_COUNT = 20
+
     # taken from http://www.howtogeek.com/137270/50-file-extensions-that-are-potentially-dangerous-on-windows/
     # and http://pcsupport.about.com/od/tipstricks/a/execfileext.htm
     # left out .js and office extensions
@@ -192,15 +194,19 @@ class SubmissionMixin(object):
 
         if self.file_upload_type:
             student_sub_dict['file_keys'] = []
-            for n in range(self.upload_file_count):
+            for i in range(self.MAX_FILES_COUNT):
                 key_to_save = ''
-                item_key = self._get_student_item_key(n)
+                item_key = self._get_student_item_key(i)
                 try:
-                    file_upload_api.get_download_url(item_key)
-                    key_to_save = item_key
+                    url = file_upload_api.get_download_url(item_key)
+                    if url:
+                        key_to_save = item_key
                 except FileUploadError:
                     pass
-                student_sub_dict['file_keys'].append(key_to_save)
+                if key_to_save:
+                    student_sub_dict['file_keys'].append(key_to_save)
+                else:
+                    break
 
         submission = api.create_submission(student_item_dict, student_sub_dict)
         self.create_workflow(submission["uuid"])
@@ -312,30 +318,35 @@ class SubmissionMixin(object):
             logger.exception("Unable to generate download url for file key {}".format(key))
         return url
 
-    def get_download_url_from_submission(self, submission):
+    def get_download_urls_from_submission(self, submission):
         """
-        Returns a download URL for retrieving content within a submission.
+        Returns a download URLs for retrieving content within a submission.
 
         Args:
-            submission (dict): Dictionary containing an answer and a file_key.
-                The file_key is used to try and retrieve a download url
+            submission (dict): Dictionary containing an answer and a file_keys.
+                The file_keys is used to try and retrieve a download urls
                 with related content
 
         Returns:
-            A URL to related content. If there is no content related to this
+            List with URLs to related content. If there is no content related to this
             key, or if there is no key for the submission, returns an empty
-            string.
+            list.
 
         """
         urls = []
         if 'file_keys' in submission['answer']:
             keys = submission['answer'].get('file_keys', '')
-            for idx, key in enumerate(keys):
-                if key:
-                    urls.append((idx, self._get_url_by_file_key(key)))
+            for key in keys:
+                url = self._get_url_by_file_key(key)
+                if url:
+                    urls.append(url)
+                else:
+                    break
         elif 'file_key' in submission['answer']:
             key = submission['answer'].get('file_key', '')
-            urls.append((0, self._get_url_by_file_key(key)))
+            url = self._get_url_by_file_key(key)
+            if url:
+                urls.append(url)
         return urls
 
     @staticmethod
@@ -417,12 +428,16 @@ class SubmissionMixin(object):
             context["submission_due"] = due_date
 
         context['file_upload_type'] = self.file_upload_type
-        context['upload_file_count'] = self.upload_file_count if self.file_upload_type else 0
-        context['upload_file_count_lst'] = range(self.upload_file_count) if self.file_upload_type else []
         context['allow_latex'] = self.allow_latex
 
         if self.file_upload_type:
-            context['file_urls'] = [(n, self._get_download_url(n)) for n in range(self.upload_file_count)]
+            context['file_urls'] = []
+            for i in range(self.MAX_FILES_COUNT):
+                file_url = self._get_download_url(i)
+                if file_url:
+                    context['file_urls'].append(file_url)
+                else:
+                    break
         if self.file_upload_type == 'custom':
             context['white_listed_file_types'] = self.white_listed_file_types
 
