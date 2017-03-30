@@ -17,6 +17,8 @@ OpenAssessment.ResponseView = function(element, server, fileUploader, baseView, 
     this.fileUploader = fileUploader;
     this.baseView = baseView;
     this.savedResponse = [];
+    this.textResponse = 'required';
+    this.fileUploadResponse = '';
     this.files = null;
     this.filesType = null;
     this.lastChangeTime = Date.now();
@@ -82,6 +84,10 @@ OpenAssessment.ResponseView.prototype = {
         // keep the preview as display none at first
         sel.find('#submission__preview__item').hide();
 
+        var submit = $('.step--response__submit', this.element);
+        this.textResponse = $(submit).attr('text_response');
+        this.fileUploadResponse = $(submit).attr('file_upload_response');
+
         // Install a click handler for submission
         sel.find('#step--response__submit').click(
             function(eventObject) {
@@ -116,7 +122,7 @@ OpenAssessment.ResponseView.prototype = {
         );
 
         // Install a click handler for the save button
-        sel.find('#file__upload').click(
+        sel.find('.file__upload').click(
             function(eventObject) {
                 // Override default form submission
                 eventObject.preventDefault();
@@ -147,6 +153,51 @@ OpenAssessment.ResponseView.prototype = {
                 clearInterval(this.autoSaveTimerId);
             }
         }
+    },
+
+    /**
+     * Check that "submit" button could be enabled (or disabled)
+     *
+     */
+    checkSubmissionAbility: function(filesFiledIsNotBlank) {
+        var textFieldsIsNotBlank = !this.response().every(function(element) {
+            return $.trim(element) === '';
+        });
+
+        filesFiledIsNotBlank = filesFiledIsNotBlank || false;
+        $('.submission__answer__file', this.element).each(function() {
+            if (($(this).prop("tagName") === 'IMG') && ($(this).attr('src') !== '')) {
+                filesFiledIsNotBlank = true;
+            }
+            if (($(this).prop("tagName") === 'A') && ($(this).attr('href') !== '')) {
+                filesFiledIsNotBlank = true;
+            }
+        });
+        var readyToSubmit = true;
+
+        if ((this.textResponse === 'required') && !textFieldsIsNotBlank) {
+            readyToSubmit = false;
+        }
+        if ((this.fileUploadResponse === 'required') && !filesFiledIsNotBlank) {
+            readyToSubmit = false;
+        }
+        if ((this.textResponse === 'optional') && (this.fileUploadResponse === 'optional') &&
+            !textFieldsIsNotBlank && !filesFiledIsNotBlank) {
+            readyToSubmit = false;
+        }
+        this.submitEnabled(readyToSubmit);
+    },
+
+    /**
+     * Check that "save" button could be enabled (or disabled)
+     *
+     */
+    checkSaveAbility: function() {
+        var textFieldsIsNotBlank = !this.response().every(function(element) {
+            return $.trim(element) === '';
+        });
+
+        return !((this.textResponse === 'required') && !textFieldsIsNotBlank);
     },
 
     /**
@@ -298,17 +349,14 @@ OpenAssessment.ResponseView.prototype = {
      the user has entered a response.
      **/
     handleResponseChanged: function() {
-        // Enable the save/submit button only for non-blank responses
-        var isNotBlank = !this.response().every(function(element) {
-            return $.trim(element) === '';
-        });
-        this.submitEnabled(isNotBlank);
+        this.checkSubmissionAbility();
 
         // Update the save button, save status, and "unsaved changes" warning
         // only if the response has changed
         if (this.responseChanged()) {
-            this.saveEnabled(isNotBlank);
-            this.previewEnabled(isNotBlank);
+            var saveAbility = this.checkSaveAbility();
+            this.saveEnabled(saveAbility);
+            this.previewEnabled(saveAbility);
             this.saveStatus(gettext('This response has not been saved.'));
             this.baseView.unsavedWarningEnabled(
                 true,
@@ -345,12 +393,9 @@ OpenAssessment.ResponseView.prototype = {
 
             // ... but update the UI based on what the user may have entered
             // since hitting the save button.
-            var currentResponse = view.response();
-            var currentResponseIsEmpty = currentResponse.every(function(element) {
-                return element === '';
-            });
-            view.submitEnabled(!currentResponseIsEmpty);
+            view.checkSubmissionAbility();
 
+            var currentResponse = view.response();
             var currentResponseEqualsSaved = currentResponse.every(function(element, index) {
                 return element === savedResponse[index];
             });
@@ -482,6 +527,7 @@ OpenAssessment.ResponseView.prototype = {
         var fileType = null;
         var fileName = '';
         var errorCheckerTriggered = false;
+        var sel = $('#openassessment__response', this.element);
 
         for (var i = 0; i < files.length; i++) {
             totalSize += files[i].size;
@@ -528,13 +574,12 @@ OpenAssessment.ResponseView.prototype = {
             }
         }
 
-        console.log('errorCheckerTriggered', errorCheckerTriggered);
         if (!errorCheckerTriggered) {
             this.baseView.toggleActionError('upload', null);
             this.files = files;
-            $("#file__upload").removeClass("is--disabled")
+            sel.find('.file__upload').removeClass("is--disabled")
         } else {
-            $("#file__upload").addClass("is--disabled")
+            sel.find('.file__upload').addClass("is--disabled")
         }
     },
 
@@ -549,8 +594,9 @@ OpenAssessment.ResponseView.prototype = {
         var promise = null;
         var first = true;
         var fileCount = view.files.length;
+        var sel = $('#openassessment__response', this.element);
 
-        $("#file__upload").addClass("is--disabled");
+        sel.find('.file__upload').addClass("is--disabled");
 
         $.each(view.files, function(index, file) {
             if (first) {
@@ -567,9 +613,10 @@ OpenAssessment.ResponseView.prototype = {
     },
 
     fileUpload: function(view, filetype, filename, filenum, file, finalUpload) {
+        var sel = $('#openassessment__response', this.element);
         var handleError = function(errMsg) {
             view.baseView.toggleActionError('upload', filename + ': ' + errMsg);
-            $("#file__upload").removeClass("is--disabled");
+            sel.find('.file__upload').removeClass("is--disabled");
         };
 
         return view.server.getUploadUrl(filetype, filename, filenum).done(
@@ -579,8 +626,9 @@ OpenAssessment.ResponseView.prototype = {
                         view.fileUrl(filenum);
                         view.baseView.toggleActionError('upload', null);
                         if (finalUpload) {
-                            $("#file__upload").removeClass("is--disabled");
+                            sel.find('.file__upload').removeClass("is--disabled");
                             view.filesUploaded = true;
+                            view.checkSubmissionAbility(true);
                         }
                     })
                     .fail(handleError);

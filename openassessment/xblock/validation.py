@@ -386,7 +386,7 @@ def validator(oa_block, _, strict_post_release=True):
     return _inner
 
 
-def validate_submission(submission, prompts, _):
+def validate_submission(submission, prompts, _, text_response='required'):
     """
     Validate submission dict.
 
@@ -406,7 +406,7 @@ def validate_submission(submission, prompts, _):
     if type(submission) != list:
         return False, message
 
-    if len(submission) != len(prompts):
+    if text_response == 'required' and len(submission) != len(prompts):
         return False, message
 
     for submission_part in submission:

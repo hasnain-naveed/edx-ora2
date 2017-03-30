@@ -78,7 +78,7 @@ class SubmissionMixin(object):
 
         status = False
         student_sub_data = data['submission']
-        success, msg = validate_submission(student_sub_data, self.prompts, self._)
+        success, msg = validate_submission(student_sub_data, self.prompts, self._, self.text_response)
         if not success:
             return (
                 False,
@@ -164,7 +164,7 @@ class SubmissionMixin(object):
         """
         if 'submission' in data:
             student_sub_data = data['submission']
-            success, msg = validate_submission(student_sub_data, self.prompts, self._)
+            success, msg = validate_submission(student_sub_data, self.prompts, self._, self.text_response)
             if not success:
                 return {'success': False, 'msg': msg}
             try:
@@ -419,7 +419,10 @@ class SubmissionMixin(object):
         problem_closed, reason, start_date, due_date = self.is_closed('submission')
 
         path = 'openassessmentblock/response/oa_response.html'
-        context = {}
+        context = {
+            "text_response": self.text_response,
+            "file_upload_response": self.file_upload_response,
+        }
 
         # Due dates can default to the distant future, in which case
         # there's effectively no due date.
@@ -430,11 +433,14 @@ class SubmissionMixin(object):
         context['file_upload_type'] = self.file_upload_type
         context['allow_latex'] = self.allow_latex
 
+        files_exist = False
+
         if self.file_upload_type:
             context['file_urls'] = []
             for i in range(self.MAX_FILES_COUNT):
                 file_url = self._get_download_url(i)
                 if file_url:
+                    files_exist = True
                     context['file_urls'].append(file_url)
                 else:
                     break
@@ -464,7 +470,17 @@ class SubmissionMixin(object):
 
             context['saved_response'] = create_submission_dict(saved_response, self.prompts)
             context['save_status'] = self.save_status
-            context['submit_enabled'] = self.saved_response != ''
+
+            submit_enabled = True
+            if self.text_response == 'required' and not self.saved_response:
+                submit_enabled = False
+            if self.file_upload_response == 'required' and not files_exist:
+                submit_enabled = False
+            if self.text_response == 'optional' and self.file_upload_response == 'optional' \
+                    and not self.saved_response and not files_exist:
+                submit_enabled = False
+            context['submit_enabled'] = submit_enabled
+
             path = "openassessmentblock/response/oa_response.html"
         elif workflow["status"] == "cancelled":
             context["workflow_cancellation"] = self.get_workflow_cancellation_info(self.submission_uuid)

@@ -61,6 +61,7 @@
                                         {{ part.prompt.description|linebreaks }}
                                     </div>
                                 </article>
+                                {% if text_response %}
                                 <div class="field field--textarea submission__answer__part__text">
                                     <label class="sr" for="submission__answer__part__text__{{ forloop.counter }}">{% trans "Your response to the question above." %}</label>
                                     <textarea
@@ -70,6 +71,7 @@
                                         maxlength="100000"
                                     >{{ part.text }}</textarea>
                                 </div>
+                                {% endif %}
                             </li>
                         {% endfor %}
                         {% if file_upload_type %}
@@ -82,7 +84,7 @@
                             </div>
                             <label class="sr" for="submission__answer__upload">{% trans "Select a file to upload for this submission." %}</label>
                             <input type="file" id="submission__answer__upload" class="file--upload" multiple="">
-                            <button type="submit" id="file__upload" class="action action--upload is--disabled">{% trans "Upload your file" %}</button>
+                            <button type="submit" class="file__upload action action--upload is--disabled">{% trans "Upload your file" %}</button>
                         </li>
                         {% endif %}
 
@@ -91,6 +93,7 @@
 
                     <span class="tip">{% trans "You may continue to work on your response until you submit it." %}</span>
 
+                    {% if text_response %}
                     <div class="response__submission__actions">
                         <div class="message message--inline message--error message--error-server">
                             <h3 class="message__title">{% trans "We could not save your progress" %}</h3>
@@ -128,6 +131,7 @@
                             {% endif %}
                         </ul>
                     </div>
+                    {% endif %}
                 </form>
             </div>
 
@@ -140,6 +144,8 @@
                 <ul class="list list--actions">
                     <li class="list--actions__item">
                         <button type="submit" id="step--response__submit"
+                                text_response="{{text_response}}"
+                                file_upload_response="{{file_upload_response}}"
                                 class="action action--submit step--response__submit {{ submit_enabled|yesno:",is--disabled" }}">
                             <span class="copy">{% trans "Submit your response and move to the next step" %}</span>
                         </button>
